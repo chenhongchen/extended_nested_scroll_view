@@ -65,6 +65,7 @@ class _PullToRefreshOuterDemoState extends State<PullToRefreshOuterDemo>
         ExtendedNestedScrollView(
           physics: BouncingScrollPhysics(),
           stretchHeaderSlivers: true,
+          topBounceWithChildList: true,
           headerSliverBuilder: (BuildContext c, bool f) {
             return <Widget>[
               // const SliverAppBar(
@@ -83,7 +84,7 @@ class _PullToRefreshOuterDemoState extends State<PullToRefreshOuterDemo>
                 child: Container(
                   color: Colors.red,
                   alignment: Alignment.center,
-                  height: 1600,
+                  height: 1200,
                   child: const Text('other things'),
                 ),
               ),

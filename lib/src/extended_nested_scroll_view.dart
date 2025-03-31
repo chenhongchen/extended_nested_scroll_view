@@ -278,6 +278,7 @@ class ExtendedNestedScrollView extends StatefulWidget {
     this.dragStartBehavior = DragStartBehavior.start,
     this.floatHeaderSlivers = false,
     this.stretchHeaderSlivers = false,
+    this.topBounceWithChildList = false,
     this.clipBehavior = Clip.hardEdge,
     this.restorationId,
     this.scrollBehavior,
@@ -406,6 +407,8 @@ class ExtendedNestedScrollView extends StatefulWidget {
   /// Whether or not the [NestedScrollView] has a [SliverAppBar] that is expected to stretch on overscroll.
   final bool stretchHeaderSlivers;
 
+  final bool topBounceWithChildList;
+
   /// {@macro flutter.material.Material.clipBehavior}
   ///
   /// Defaults to [Clip.hardEdge].
@@ -451,31 +454,6 @@ class ExtendedNestedScrollView extends StatefulWidget {
       'NestedScrollView.sliverOverlapAbsorberHandleFor must be called with a context that contains a NestedScrollView.',
     );
     return target!.state._absorberHandle;
-  }
-
-  List<Widget> _buildSlivers(BuildContext context,
-      ScrollController innerController, bool bodyIsScrolled) {
-    return <Widget>[
-      ...headerSliverBuilder(context, bodyIsScrolled),
-      _ExtendedSliverFillRemainingWithScrollable(
-        // The inner (body) scroll view must use this scroll controller so that
-        // the independent scroll positions can be kept in sync.
-        child: PrimaryScrollController(
-          // The inner scroll view should always inherit this
-          // PrimaryScrollController, on every platform.
-          automaticallyInheritForPlatforms: TargetPlatform.values.toSet(),
-          // `PrimaryScrollController.scrollDirection` is not set, and so it is
-          // restricted to the default Axis.vertical.
-          // Ideally the inner and outer views would have the same
-          // scroll direction, and so we could assume
-          // `NestedScrollView.scrollDirection` for the PrimaryScrollController,
-          // but use cases already exist where the axes are mismatched.
-          // https://github.com/flutter/flutter/issues/102001
-          controller: innerController,
-          child: body,
-        ),
-      ),
-    ];
   }
 
   @override
@@ -542,6 +520,8 @@ class ExtendedNestedScrollViewState extends State<ExtendedNestedScrollView> {
 
   _ExtendedNestedScrollCoordinator? _coordinator;
 
+  final ValueNotifier<double> _childOffset = ValueNotifier<double>(0);
+
   @override
   void initState() {
     super.initState();
@@ -575,6 +555,7 @@ class ExtendedNestedScrollViewState extends State<ExtendedNestedScrollView> {
     _coordinator!.dispose();
     _coordinator = null;
     _absorberHandle.dispose();
+    _childOffset.dispose();
     super.dispose();
   }
 
@@ -605,32 +586,87 @@ class ExtendedNestedScrollViewState extends State<ExtendedNestedScrollView> {
                 .applyTo(const ClampingScrollPhysics()) ??
             const ClampingScrollPhysics();
 
-    return _InheritedNestedScrollView(
-      state: this,
-      child: Builder(
-        builder: (BuildContext context) {
-          _lastHasScrolledBody = _coordinator!.hasScrolledBody;
-          return _NestedScrollViewCustomScrollView(
-            dragStartBehavior: widget.dragStartBehavior,
-            scrollDirection: widget.scrollDirection,
-            reverse: widget.reverse,
-            physics: _scrollPhysics,
-            scrollBehavior: widget.scrollBehavior ??
-                ScrollConfiguration.of(context).copyWith(scrollbars: false),
-            controller: _coordinator!._outerController,
-            slivers: widget._buildSlivers(
-              context,
-              _coordinator!._innerController,
-              _lastHasScrolledBody!,
-            ),
-            handle: _absorberHandle,
-            clipBehavior: widget.clipBehavior,
-            restorationId: widget.restorationId,
-            keyboardDismissBehavior: widget.keyboardDismissBehavior,
-          );
-        },
+    return Column(children: <Widget>[
+      ValueListenableBuilder<double>(
+          valueListenable: _childOffset,
+          builder: (BuildContext context, double value, Widget? child) {
+            return SizedBox(height: value);
+          }),
+      Expanded(
+          child: _InheritedNestedScrollView(
+        state: this,
+        child: Builder(
+          builder: (BuildContext context) {
+            _lastHasScrolledBody = _coordinator!.hasScrolledBody;
+            return _NestedScrollViewCustomScrollView(
+              dragStartBehavior: widget.dragStartBehavior,
+              scrollDirection: widget.scrollDirection,
+              reverse: widget.reverse,
+              physics: _scrollPhysics,
+              scrollBehavior: widget.scrollBehavior ??
+                  ScrollConfiguration.of(context).copyWith(scrollbars: false),
+              controller: _coordinator!._outerController,
+              slivers: _buildSlivers(
+                context,
+                _coordinator!._innerController,
+                _lastHasScrolledBody!,
+              ),
+              handle: _absorberHandle,
+              clipBehavior: widget.clipBehavior,
+              restorationId: widget.restorationId,
+              keyboardDismissBehavior: widget.keyboardDismissBehavior,
+            );
+          },
+        ),
+      )),
+    ]);
+  }
+
+  List<Widget> _buildSlivers(BuildContext context,
+      ScrollController innerController, bool bodyIsScrolled) {
+    return <Widget>[
+      ...widget.headerSliverBuilder(context, bodyIsScrolled),
+      _ExtendedSliverFillRemainingWithScrollable(
+        // The inner (body) scroll view must use this scroll controller so that
+        // the independent scroll positions can be kept in sync.
+        child: PrimaryScrollController(
+          // The inner scroll view should always inherit this
+          // PrimaryScrollController, on every platform.
+          automaticallyInheritForPlatforms: TargetPlatform.values.toSet(),
+          // `PrimaryScrollController.scrollDirection` is not set, and so it is
+          // restricted to the default Axis.vertical.
+          // Ideally the inner and outer views would have the same
+          // scroll direction, and so we could assume
+          // `NestedScrollView.scrollDirection` for the PrimaryScrollController,
+          // but use cases already exist where the axes are mismatched.
+          // https://github.com/flutter/flutter/issues/102001
+          controller: innerController,
+          child: widget.topBounceWithChildList
+              ? NotificationListener<ScrollNotification>(
+                  onNotification: (ScrollNotification scroll) {
+                    _childOffset.value = (scroll.metrics.pixels >= 0
+                        ? 0
+                        : -scroll.metrics.pixels);
+                    return false;
+                  },
+                  child: ValueListenableBuilder<double>(
+                      valueListenable: _childOffset,
+                      builder:
+                          (BuildContext context, double value, Widget? child) {
+                        return Stack(children: <Widget>[
+                          Positioned(
+                            top: -value,
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            child: widget.body,
+                          )
+                        ]);
+                      }))
+              : widget.body,
+        ),
       ),
-    );
+    ];
   }
 }
 
