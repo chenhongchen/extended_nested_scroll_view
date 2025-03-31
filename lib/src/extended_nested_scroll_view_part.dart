@@ -10,6 +10,7 @@ class _ExtendedNestedScrollCoordinator extends _NestedScrollCoordinator {
     ScrollController? parent,
     VoidCallback onHasScrolledBodyChanged,
     bool floatHeaderSlivers,
+    bool stretchHeaderSlivers,
     this.pinnedHeaderSliverHeightBuilder,
     this.onlyOneScrollInBody,
     this.scrollDirection,
@@ -18,6 +19,7 @@ class _ExtendedNestedScrollCoordinator extends _NestedScrollCoordinator {
           parent,
           onHasScrolledBodyChanged,
           floatHeaderSlivers,
+          stretchHeaderSlivers,
         ) {
     final double initialScrollOffset = _parent?.initialScrollOffset ?? 0.0;
     _outerController = _ExtendedNestedScrollController(
@@ -208,6 +210,7 @@ class _ExtendedNestedScrollController extends _NestedScrollController {
           initialScrollOffset: initialScrollOffset,
           debugLabel: debugLabel,
         );
+
   @override
   _ExtendedNestedScrollCoordinator get coordinator =>
       super.coordinator as _ExtendedNestedScrollCoordinator;
@@ -269,6 +272,7 @@ class _ExtendedNestedScrollPosition extends _NestedScrollPosition {
           coordinator: coordinator,
           initialPixels: initialPixels,
         );
+
   @override
   _ExtendedNestedScrollCoordinator get coordinator =>
       super.coordinator as _ExtendedNestedScrollCoordinator;
@@ -291,6 +295,7 @@ class _ExtendedNestedScrollPosition extends _NestedScrollPosition {
   }
 
   bool _isActived = false;
+
   @override
   Drag drag(DragStartDetails details, VoidCallback dragCancelCallback) {
     //print('drag--$debugLabel');
@@ -336,6 +341,7 @@ class _ExtendedRenderSliverFillRemainingWithScrollable
 // I/flutter (14963): -5.684341886080802e-14
 extension DoubleEx on double {
   bool get notZero => abs() > precisionErrorTolerance;
+
   bool get isZero => abs() < precisionErrorTolerance;
 }
 
@@ -348,6 +354,7 @@ class _ExtendedNestedInnerBallisticScrollActivity
     super.vsync,
     super.shouldIgnorePointer,
   );
+
   @override
   bool applyMoveTo(double value) {
     // https://github.com/flutter/flutter/pull/87801

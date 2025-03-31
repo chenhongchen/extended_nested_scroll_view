@@ -9,3 +9,17 @@ ios/.generated/
 ios/Flutter/Generated.xcconfig
 ios/Runner/GeneratedPluginRegistrant.*
 .vscode/
+
+.idea
+example/android/
+example/ios/.gitignore
+example/ios/Flutter/
+example/ios/Runner.xcodeproj/
+example/ios/Runner.xcworkspace/
+example/ios/Runner/
+example/ios/RunnerTests/
+example/linux/
+example/macos/
+example/test/
+example/web/
+example/windows/

@@ -69,16 +69,25 @@ class _ScrollToTopDemoState extends State<ScrollToTopDemo>
             kToolbarHeight;
     return ExtendedNestedScrollView(
       key: _key,
+      physics: const BouncingScrollPhysics(),
+      stretchHeaderSlivers: true,
       headerSliverBuilder: (BuildContext c, bool f) {
         return <Widget>[
           SliverAppBar(
             pinned: true,
             expandedHeight: 200.0,
-            title: const Text('scroll to top'),
+            stretch: true,
+            stretchTriggerOffset: 1.0,
             flexibleSpace: FlexibleSpaceBar(
-              //centerTitle: true,
               collapseMode: CollapseMode.pin,
-              background: Image.asset('assets/467141054.jpg', fit: BoxFit.fill),
+              stretchModes: [
+                StretchMode.blurBackground,
+                StretchMode.zoomBackground
+              ],
+              background: Image.asset(
+                'assets/467141054.jpg',
+                fit: BoxFit.cover,
+              ),
             ),
           ),
         ];
@@ -111,7 +120,7 @@ class _ScrollToTopDemoState extends State<ScrollToTopDemo>
                   ListView.builder(
                     //store Page state
                     key: const PageStorageKey<String>('Tab0'),
-                    physics: const ClampingScrollPhysics(),
+                    physics: const BouncingScrollPhysics(),
                     itemBuilder: (BuildContext c, int i) {
                       return Container(
                         alignment: Alignment.center,
@@ -128,7 +137,7 @@ class _ScrollToTopDemoState extends State<ScrollToTopDemo>
                   ListView.builder(
                     //store Page state
                     key: const PageStorageKey<String>('Tab1'),
-                    physics: const ClampingScrollPhysics(),
+                    physics: const BouncingScrollPhysics(),
                     itemBuilder: (BuildContext c, int i) {
                       return Container(
                         alignment: Alignment.center,

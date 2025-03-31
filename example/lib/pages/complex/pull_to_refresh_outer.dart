@@ -50,11 +50,7 @@ class _PullToRefreshOuterDemoState extends State<PullToRefreshOuterDemo>
 
   Widget _buildScaffoldBody() {
     final double statusBarHeight = MediaQuery.of(context).padding.top;
-    final double pinnedHeaderHeight =
-        //statusBar height
-        statusBarHeight +
-            //pinned SliverAppBar height in header
-            kToolbarHeight;
+    final double pinnedHeaderHeight = statusBarHeight + kTextTabBarHeight;
     return PullToRefreshNotification(
       color: Colors.blue,
       onRefresh: () => Future<bool>.delayed(const Duration(seconds: 1), () {
@@ -67,12 +63,15 @@ class _PullToRefreshOuterDemoState extends State<PullToRefreshOuterDemo>
       maxDragOffset: maxDragOffset,
       child: GlowNotificationWidget(
         ExtendedNestedScrollView(
+          physics: BouncingScrollPhysics(),
+          stretchHeaderSlivers: true,
           headerSliverBuilder: (BuildContext c, bool f) {
             return <Widget>[
-              const SliverAppBar(
-                pinned: true,
-                title: Text('pull to refresh in header'),
-              ),
+              // const SliverAppBar(
+              //   pinned: true,
+              //   stretch: true,
+              //   title: Text('pull to refresh in header'),
+              // ),
               PullToRefreshContainer(
                 (PullToRefreshScrollNotificationInfo? info) {
                   return SliverToBoxAdapter(
@@ -84,8 +83,20 @@ class _PullToRefreshOuterDemoState extends State<PullToRefreshOuterDemo>
                 child: Container(
                   color: Colors.red,
                   alignment: Alignment.center,
-                  height: 200,
+                  height: 1600,
                   child: const Text('other things'),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: TabBar(
+                  controller: primaryTC,
+                  labelColor: Colors.blue,
+                  indicatorColor: Colors.blue,
+                  indicatorSize: TabBarIndicatorSize.label,
+                  indicatorWeight: 2.0,
+                  isScrollable: false,
+                  unselectedLabelColor: Colors.grey,
+                  tabs: const <Tab>[Tab(text: 'Tab0'), Tab(text: 'Tab1')],
                 ),
               ),
             ];
@@ -96,16 +107,6 @@ class _PullToRefreshOuterDemoState extends State<PullToRefreshOuterDemo>
           },
           body: Column(
             children: <Widget>[
-              TabBar(
-                controller: primaryTC,
-                labelColor: Colors.blue,
-                indicatorColor: Colors.blue,
-                indicatorSize: TabBarIndicatorSize.label,
-                indicatorWeight: 2.0,
-                isScrollable: false,
-                unselectedLabelColor: Colors.grey,
-                tabs: const <Tab>[Tab(text: 'Tab0'), Tab(text: 'Tab1')],
-              ),
               Expanded(
                 child: TabBarView(
                   controller: primaryTC,
@@ -113,7 +114,7 @@ class _PullToRefreshOuterDemoState extends State<PullToRefreshOuterDemo>
                     ListView.builder(
                       //store Page state
                       key: const PageStorageKey<String>('Tab0'),
-                      physics: const ClampingScrollPhysics(),
+                      // physics: const BouncingScrollPhysics(),
                       itemBuilder: (BuildContext c, int i) {
                         return Container(
                           alignment: Alignment.center,
@@ -130,7 +131,7 @@ class _PullToRefreshOuterDemoState extends State<PullToRefreshOuterDemo>
                     ListView.builder(
                       //store Page state
                       key: const PageStorageKey<String>('Tab1'),
-                      physics: const ClampingScrollPhysics(),
+                      // physics: const ClampingScrollPhysics(),
                       itemBuilder: (BuildContext c, int i) {
                         return Container(
                           alignment: Alignment.center,
