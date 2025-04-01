@@ -586,40 +586,43 @@ class ExtendedNestedScrollViewState extends State<ExtendedNestedScrollView> {
                 .applyTo(const ClampingScrollPhysics()) ??
             const ClampingScrollPhysics();
 
-    return Column(children: <Widget>[
-      ValueListenableBuilder<double>(
-          valueListenable: _childOffset,
-          builder: (BuildContext context, double value, Widget? child) {
-            return SizedBox(height: value);
-          }),
-      Expanded(
-          child: _InheritedNestedScrollView(
-        state: this,
-        child: Builder(
-          builder: (BuildContext context) {
-            _lastHasScrolledBody = _coordinator!.hasScrolledBody;
-            return _NestedScrollViewCustomScrollView(
-              dragStartBehavior: widget.dragStartBehavior,
-              scrollDirection: widget.scrollDirection,
-              reverse: widget.reverse,
-              physics: _scrollPhysics,
-              scrollBehavior: widget.scrollBehavior ??
-                  ScrollConfiguration.of(context).copyWith(scrollbars: false),
-              controller: _coordinator!._outerController,
-              slivers: _buildSlivers(
-                context,
-                _coordinator!._innerController,
-                _lastHasScrolledBody!,
-              ),
-              handle: _absorberHandle,
-              clipBehavior: widget.clipBehavior,
-              restorationId: widget.restorationId,
-              keyboardDismissBehavior: widget.keyboardDismissBehavior,
-            );
-          },
-        ),
-      )),
-    ]);
+    final Widget child = _InheritedNestedScrollView(
+      state: this,
+      child: Builder(
+        builder: (BuildContext context) {
+          _lastHasScrolledBody = _coordinator!.hasScrolledBody;
+          return _NestedScrollViewCustomScrollView(
+            dragStartBehavior: widget.dragStartBehavior,
+            scrollDirection: widget.scrollDirection,
+            reverse: widget.reverse,
+            physics: _scrollPhysics,
+            scrollBehavior: widget.scrollBehavior ??
+                ScrollConfiguration.of(context).copyWith(scrollbars: false),
+            controller: _coordinator!._outerController,
+            slivers: _buildSlivers(
+              context,
+              _coordinator!._innerController,
+              _lastHasScrolledBody!,
+            ),
+            handle: _absorberHandle,
+            clipBehavior: widget.clipBehavior,
+            restorationId: widget.restorationId,
+            keyboardDismissBehavior: widget.keyboardDismissBehavior,
+          );
+        },
+      ),
+    );
+
+    return widget.topBounceWithChildList
+        ? Column(children: <Widget>[
+            ValueListenableBuilder<double>(
+                valueListenable: _childOffset,
+                builder: (BuildContext context, double value, Widget? child) {
+                  return SizedBox(height: value);
+                }),
+            Expanded(child: child),
+          ])
+        : child;
   }
 
   List<Widget> _buildSlivers(BuildContext context,
