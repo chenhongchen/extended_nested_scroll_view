@@ -888,8 +888,50 @@ class _NestedScrollCoordinator
     );
   }
 
+  // Kenshin: fallback velocity tracker.
+  // 解决 Flutter VelocityTracker 在「上扫 fling 中途反向下扫并松手」
+  // 这种 reverse-direction 场景下，偶发把 release velocity 报成 0 的问题。
+  // 现象：手指实际还在快扫，但 drag.end 给的 primaryVelocity 是 0 ，
+  // 走到 goBallistic 时 v=0 → ballistic 不动 → 页面停在半空，
+  // 视觉上就是「定住」（需要再扫一次才能继续）。
+  // 这里在 coordinator 里自己滚动一个 50ms 的滑窗，松手时如果系统报的
+  // velocity 明显小于我们算出来的、且我们算出来的足够大，就用我们的。
+  final List<_NSVDragSample> _recentDragSamples = <_NSVDragSample>[];
+  static const int _kFallbackWindowUs = 50 * 1000; // 50ms
+
+  void _recordDragSample(double delta) {
+    final int now = DateTime.now().microsecondsSinceEpoch;
+    _recentDragSamples.add(_NSVDragSample(now, delta));
+    while (_recentDragSamples.isNotEmpty &&
+        now - _recentDragSamples.first.micros > _kFallbackWindowUs) {
+      _recentDragSamples.removeAt(0);
+    }
+  }
+
+  double _maybeFallbackVelocity(double reported) {
+    if (_recentDragSamples.length < 2) return reported;
+    final int now = DateTime.now().microsecondsSinceEpoch;
+    final int span = now - _recentDragSamples.first.micros;
+    if (span < 16000) return reported; // 至少要 1 帧的样本
+    double sum = 0;
+    for (final _NSVDragSample s in _recentDragSamples) {
+      sum += s.delta;
+    }
+    // delta>0 = drag-down = scroll pos 下降；goBallistic velocity<0 表示
+    // scroll pos 继续下降。所以 velocity = -sum/秒。
+    final double fallback = -sum / (span / 1000000.0);
+    // 只有「报上来的速度明显偏低 且 我们算的速度足够大」才覆盖，
+    // 避免把「用户主动减速松手」的意图也吞掉。
+    if (fallback.abs() > reported.abs() * 5 && fallback.abs() > 1000) {
+      return fallback;
+    }
+    return reported;
+  }
+
   @override
   void goBallistic(double velocity) {
+    velocity = _maybeFallbackVelocity(velocity);
+    _recentDragSamples.clear();
     beginActivity(
       createOuterBallisticScrollActivity(velocity),
       (_NestedScrollPosition position) {
@@ -959,6 +1001,19 @@ class _NestedScrollCoordinator
   @protected
   ScrollActivity createInnerBallisticScrollActivity(
       _NestedScrollPosition position, double velocity) {
+    // Kenshin (fix bounce artifact on release):
+    // 当 _stretchHeaderSlivers 开 + 用户下拖让 outer 进入 overscroll 后松手，
+    // velocity 多半 < 0。此时 outer 的 outer-only ballistic 会把 outer 弹回 0；
+    // inner 这边如果照样按速度创建 BouncingScrollSimulation，
+    // simulation 会让 inner 越过自己的 minScrollExtent 进入负 pixels
+    // （nestOffset 在 value < outer.min 时会把 value 直接翻译进 inner 的负 pixels），
+    // 导致 inner 跟着 overscroll、视觉上和 outer 回弹打架。
+    // 这里在该场景下让 inner 保持 idle（IdleScrollActivity），bounce 全权给 outer。
+    if (_stretchHeaderSlivers &&
+        velocity < 0 &&
+        position.pixels <= position.minScrollExtent) {
+      return IdleScrollActivity(position);
+    }
     return position.createBallisticScrollActivity(
       position.physics.createBallisticSimulation(
         _getMetrics(position, velocity),
@@ -1265,6 +1320,7 @@ class _NestedScrollCoordinator
 
   @override
   void applyUserOffset(double delta) {
+    _recordDragSample(delta);
     updateUserScrollDirection(
       delta > 0.0 ? ScrollDirection.forward : ScrollDirection.reverse,
     );
@@ -1288,9 +1344,25 @@ class _NestedScrollCoordinator
         }
       }
       if (outerDelta.notZero) {
-        final double innerDelta = _outerPosition!.applyClampedDragUpdate(
+        // Kenshin: 如果 outer 处于轻微 overscroll（pixels<0，例如上一次回弹
+        // 还没归位，hold 时拿到 -0.7），上游 applyClampedDragUpdate 会把
+        // max 钳到 0，只能吃掉「填平 overscroll」那一小段，剩余 delta 直接
+        // return 出来。标准 NSV 把剩余喂给 inner，导致 inner.pixels 一开始
+        // 就被推出 0。对 stretchHeaderSlivers 来说，这会让后续 reverse 时
+        // inner 要先扫回 0、metrics 全部偏移，呈现为「最后一下 outer 收不
+        // 回去」的卡住。先记下当前是不是 overscroll；如果是，等 outer 被
+        // 拉回 0 后再把剩余 delta 喂一次 outer，让 outer 继续 collapse 而
+        // 不是漏给 inner。
+        final bool outerWasOverscrolled =
+            _stretchHeaderSlivers && (_outerPosition!.pixels < 0.0);
+        double innerDelta = _outerPosition!.applyClampedDragUpdate(
           outerDelta,
         );
+        if (outerWasOverscrolled &&
+            innerDelta.notZero &&
+            _outerPosition!.pixels >= 0.0) {
+          innerDelta = _outerPosition!.applyClampedDragUpdate(innerDelta);
+        }
         if (innerDelta.notZero) {
           for (final _NestedScrollPosition position in _innerPositions) {
             position.applyFullDragUpdate(innerDelta);
@@ -1360,6 +1432,12 @@ class _NestedScrollCoordinator
   @override
   String toString() =>
       '${objectRuntimeType(this, '_NestedScrollCoordinator')}(outer=$_outerController; inner=$_innerController)';
+}
+
+class _NSVDragSample {
+  const _NSVDragSample(this.micros, this.delta);
+  final int micros;
+  final double delta;
 }
 
 class _NestedScrollController extends ScrollController {
